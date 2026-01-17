@@ -1,10 +1,10 @@
-name: Sharp Bot Scanner
+name: Arbitrage Scanner
 
 on:
   schedule:
-    # Runs every 60 minutes (Adjust as needed, but mind API limits)
-    - cron: '*/60 * * * *'
-  # Allows you to run it manually from the Actions tab for testing
+    # Cron syntax: Minute Hour Day Month DayOfWeek
+    # '0 * * * *' means "Run at the top of every hour"
+    - cron: '0 */2 * * *'
   workflow_dispatch:
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Run Sharp Scanner
+      - name: Run Arb Scanner
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
