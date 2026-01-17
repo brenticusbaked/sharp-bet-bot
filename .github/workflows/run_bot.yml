@@ -1,0 +1,31 @@
+name: Sharp Bot Scanner
+
+on:
+  schedule:
+    # Runs every 30 minutes (Adjust as needed, but mind API limits)
+    - cron: '*/30 * * * *'
+  # Allows you to run it manually from the Actions tab for testing
+  workflow_dispatch:
+
+jobs:
+  run-scanner:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run Sharp Scanner
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python main.py
