@@ -3,7 +3,7 @@ name: Sharp Bot Scanner
 on:
   schedule:
     # Runs every 60 minutes (Adjust as needed, but mind API limits)
-    - cron: '*/0 * * * *'
+    - cron: '*/60 * * * *'
   # Allows you to run it manually from the Actions tab for testing
   workflow_dispatch:
 
