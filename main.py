@@ -1,94 +1,117 @@
 import requests
-import json
-import os
+import time
+from datetime import datetime
 
 # --- CONFIGURATION ---
-API_KEY = os.environ['ODDS_API_KEY']  # Paste your free key here
-SPORT = 'basketball_nba'       # Options: 'basketball_nba', 'americanfootball_nfl', 'icehockey_nhl'
-REGIONS = 'us'                 # 'us', 'uk', 'eu', 'au'
-MARKETS = 'h2h'                # 'h2h' (Moneyline), 'spreads', 'totals'
-ODDS_FORMAT = 'american'       # 'american' or 'decimal'
+API_KEY = 'YOUR_ODDS_API_KEY'  # Paste your key from the-odds-api.com
+DISCORD_WEBHOOK_URL = 'YOUR_DISCORD_WEBHOOK_URL' # Paste your Discord Webhook URL here
 
-# --- THE SHARP FILTER ---
-# We use this to filter out small "noise" edges.
-MIN_EDGE_PERCENT = 3.0 
+SPORT = 'basketball_nba'      
+REGIONS = 'us'                 
+MARKETS = 'h2h'                
+ODDS_FORMAT = 'american'       
+
+def send_discord_alert(title, details, color=65280):
+    """Sends a formatted embed message to Discord."""
+    data = {
+        "embeds": [
+            {
+                "title": title,
+                "description": details,
+                "color": color,  # Green = 65280, Red = 16711680
+                "footer": {"text": f"SharpBot • {datetime.now().strftime('%H:%M:%S')}"}
+            }
+        ]
+    }
+    try:
+        requests.post(DISCORD_WEBHOOK_URL, json=data)
+    except Exception as e:
+        print(f"Error sending to Discord: {e}")
 
 def fetch_odds():
-    odds_response = requests.get(
-        f'https://api.the-odds-api.com/v4/sports/{SPORT}/odds',
-        params={
-            'api_key': API_KEY,
-            'regions': REGIONS,
-            'markets': MARKETS,
-            'oddsFormat': ODDS_FORMAT,
-            'dateFormat': 'iso',
-        }
-    )
-
-    if odds_response.status_code != 200:
-        print(f"Failed to get odds: {odds_response.status_code}")
+    print(f"Fetching odds for {SPORT}...")
+    try:
+        response = requests.get(
+            f'https://api.the-odds-api.com/v4/sports/{SPORT}/odds',
+            params={
+                'api_key': API_KEY,
+                'regions': REGIONS,
+                'markets': MARKETS,
+                'oddsFormat': ODDS_FORMAT,
+                'dateFormat': 'iso',
+            }
+        )
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(f"API Error: {response.status_code}")
+            send_discord_alert("API Error", f"Status Code: {response.status_code}", 16711680)
+            return None
+    except Exception as e:
+        print(f"Connection Error: {e}")
         return None
 
-    return odds_response.json()
-
 def find_value_bets(games):
-    print(f"\nScanning {len(games)} games for Positive EV...")
-    print("-" * 60)
-
+    bets_found = 0
+    
     for game in games:
         home_team = game['home_team']
         away_team = game['away_team']
         
-        # 1. Find the "Consensus" (Average) Line
-        # In a real sharp bot, you would strictly use 'Pinnacle' or 'Circa' as the sharp anchor.
-        # Here, we calculate an average of all available books to find outliers.
-        
-        home_odds_list = []
-        away_odds_list = []
+        # Collect all odds to find the average
+        home_odds = []
+        away_odds = []
         
         for book in game['bookmakers']:
             for market in book['markets']:
                 if market['key'] == 'h2h':
                     for outcome in market['outcomes']:
+                        price = outcome['price']
                         if outcome['name'] == home_team:
-                            home_odds_list.append(outcome['price'])
+                            home_odds.append(price)
                         elif outcome['name'] == away_team:
-                            away_odds_list.append(outcome['price'])
+                            away_odds.append(price)
 
-        if not home_odds_list or not away_odds_list:
+        if not home_odds or not away_odds:
             continue
 
-        # Simple logic: If a book offers significantly better odds than the average
-        avg_home = sum(home_odds_list) / len(home_odds_list)
-        avg_away = sum(away_odds_list) / len(away_odds_list)
+        avg_home = sum(home_odds) / len(home_odds)
+        avg_away = sum(away_odds) / len(away_odds)
 
+        # Scan for outliers (Value Bets)
         for book in game['bookmakers']:
             book_name = book['title']
             for market in book['markets']:
                 if market['key'] == 'h2h':
                     for outcome in market['outcomes']:
                         price = outcome['price']
-                        
-                        # --- THE STRATEGY ---
-                        # If the price is better than the average by a certain margin
-                        # (This is a simplified EV calculation for demonstration)
-                        
                         team = outcome['name']
+                        
+                        # LOGIC: If price is significantly better than average
+                        # (Adjust this threshold based on what you consider "Sharp")
                         avg_price = avg_home if team == home_team else avg_away
                         
-                        # Note: Comparing American odds directly is tricky mathematically 
-                        # (negative vs positive), so usually convert to decimal first.
-                        # This print logic detects OUTLIERS.
-                        
-                        if price > avg_price + 10: # Simple threshold for American odds
-                             print(f"💎 VALUE FOUND: {book_name}")
-                             print(f"   Matchup: {away_team} @ {home_team}")
-                             print(f"   Bet: {team} @ {price}")
-                             print(f"   Avg Market Price: {int(avg_price)}")
-                             print("-" * 40)
+                        # Threshold: Finding a price +15 points better than average (e.g., +130 vs +115)
+                        if price > avg_price + 15: 
+                            bets_found += 1
+                            msg = (f"**Matchup:** {away_team} @ {home_team}\n"
+                                   f"**Bet:** {team} Moneyline\n"
+                                   f"**Book:** {book_name} @ {price}\n"
+                                   f"**Mkt Avg:** {int(avg_price)}")
+                            
+                            print(f"Sending Alert: {team} ({price})")
+                            send_discord_alert("💎 Sharp Value Found", msg)
+                            time.sleep(1) # Prevent Discord rate limits
 
-# --- EXECUTION ---
+    if bets_found == 0:
+        print("No bets found meeting criteria.")
+        # Optional: Send a "Scan Complete" message so you know it ran
+        # send_discord_alert("Scan Complete", "No value bets found this run.", 33023)
+
 if __name__ == "__main__":
+    # Send a startup ping so you know the link works
+    send_discord_alert("🤖 Bot Startup", "SharpBot is online and scanning...", 3447003)
+    
     data = fetch_odds()
     if data:
         find_value_bets(data)
