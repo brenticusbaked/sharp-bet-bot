@@ -2,7 +2,7 @@ import requests
 import json
 
 # --- PASTE YOUR WEBHOOK URL HERE ---
-WEBHOOK_URL = https://discord.com/api/webhooks/1461961795022618799/42QMeyZpcxv1nAt0ui4v15prTzLNWrVnAhoqSm-jeUJsmeDANIb6l_3lwqv7zwujnd58
+WEBHOOK_URL = "https://discord.com/api/webhooks/1461961795022618799/42QMeyZpcxv1nAt0ui4v15prTzLNWrVnAhoqSm-jeUJsmeDANIb6l_3lwqv7zwujnd58"
 
 def test_connection():
     print(f"Attempting to connect to: {WEBHOOK_URL[:30]}...")
