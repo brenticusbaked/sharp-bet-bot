@@ -1,117 +1,46 @@
 import requests
-import time
-from datetime import datetime
+import json
 
-# --- CONFIGURATION ---
-API_KEY = 'YOUR_ODDS_API_KEY'  # Paste your key from the-odds-api.com
-DISCORD_WEBHOOK_URL = 'YOUR_DISCORD_WEBHOOK_URL' # Paste your Discord Webhook URL here
+# --- PASTE YOUR WEBHOOK URL HERE ---
+WEBHOOK_URL = https://discord.com/api/webhooks/1461961795022618799/42QMeyZpcxv1nAt0ui4v15prTzLNWrVnAhoqSm-jeUJsmeDANIb6l_3lwqv7zwujnd58
 
-SPORT = 'basketball_nba'      
-REGIONS = 'us'                 
-MARKETS = 'h2h'                
-ODDS_FORMAT = 'american'       
+def test_connection():
+    print(f"Attempting to connect to: {WEBHOOK_URL[:30]}...")
 
-def send_discord_alert(title, details, color=65280):
-    """Sends a formatted embed message to Discord."""
-    data = {
-        "embeds": [
-            {
-                "title": title,
-                "description": details,
-                "color": color,  # Green = 65280, Red = 16711680
-                "footer": {"text": f"SharpBot • {datetime.now().strftime('%H:%M:%S')}"}
-            }
-        ]
+    # 1. SIMPLE TEXT TEST (Easiest to pass)
+    payload = {
+        "content": "✅ **Test Message:** If you see this, the connection works."
     }
-    try:
-        requests.post(DISCORD_WEBHOOK_URL, json=data)
-    except Exception as e:
-        print(f"Error sending to Discord: {e}")
 
-def fetch_odds():
-    print(f"Fetching odds for {SPORT}...")
+    # 2. Add Headers (Discord blocks requests without a User-Agent sometimes)
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Python-Requests/2.31"
+    }
+
     try:
-        response = requests.get(
-            f'https://api.the-odds-api.com/v4/sports/{SPORT}/odds',
-            params={
-                'api_key': API_KEY,
-                'regions': REGIONS,
-                'markets': MARKETS,
-                'oddsFormat': ODDS_FORMAT,
-                'dateFormat': 'iso',
-            }
-        )
-        if response.status_code == 200:
-            return response.json()
+        response = requests.post(WEBHOOK_URL, json=payload, headers=headers)
+        
+        # --- THE CRITICAL DEBUG STEP ---
+        print(f"\nHTTP Status Code: {response.status_code}")
+        print(f"Server Response: {response.text}")
+
+        if response.status_code == 204:
+            print("\nSUCCESS! Discord received the message (204 No Content is normal).")
+        elif response.status_code == 400:
+            print("\n❌ ERROR 400: Bad Request.")
+            print("Check: Did you copy the Webhook URL correctly?")
+        elif response.status_code == 401:
+            print("\n❌ ERROR 401: Unauthorized.")
+            print("Check: Delete the Webhook in Discord and create a new one.")
+        elif response.status_code == 404:
+            print("\n❌ ERROR 404: Not Found.")
+            print("Check: The Webhook URL is invalid or the channel was deleted.")
         else:
-            print(f"API Error: {response.status_code}")
-            send_discord_alert("API Error", f"Status Code: {response.status_code}", 16711680)
-            return None
+            print(f"\n❌ UNKNOWN ERROR: {response.status_code}")
+
     except Exception as e:
-        print(f"Connection Error: {e}")
-        return None
-
-def find_value_bets(games):
-    bets_found = 0
-    
-    for game in games:
-        home_team = game['home_team']
-        away_team = game['away_team']
-        
-        # Collect all odds to find the average
-        home_odds = []
-        away_odds = []
-        
-        for book in game['bookmakers']:
-            for market in book['markets']:
-                if market['key'] == 'h2h':
-                    for outcome in market['outcomes']:
-                        price = outcome['price']
-                        if outcome['name'] == home_team:
-                            home_odds.append(price)
-                        elif outcome['name'] == away_team:
-                            away_odds.append(price)
-
-        if not home_odds or not away_odds:
-            continue
-
-        avg_home = sum(home_odds) / len(home_odds)
-        avg_away = sum(away_odds) / len(away_odds)
-
-        # Scan for outliers (Value Bets)
-        for book in game['bookmakers']:
-            book_name = book['title']
-            for market in book['markets']:
-                if market['key'] == 'h2h':
-                    for outcome in market['outcomes']:
-                        price = outcome['price']
-                        team = outcome['name']
-                        
-                        # LOGIC: If price is significantly better than average
-                        # (Adjust this threshold based on what you consider "Sharp")
-                        avg_price = avg_home if team == home_team else avg_away
-                        
-                        # Threshold: Finding a price +15 points better than average (e.g., +130 vs +115)
-                        if price > avg_price + 15: 
-                            bets_found += 1
-                            msg = (f"**Matchup:** {away_team} @ {home_team}\n"
-                                   f"**Bet:** {team} Moneyline\n"
-                                   f"**Book:** {book_name} @ {price}\n"
-                                   f"**Mkt Avg:** {int(avg_price)}")
-                            
-                            print(f"Sending Alert: {team} ({price})")
-                            send_discord_alert("💎 Sharp Value Found", msg)
-                            time.sleep(1) # Prevent Discord rate limits
-
-    if bets_found == 0:
-        print("No bets found meeting criteria.")
-        # Optional: Send a "Scan Complete" message so you know it ran
-        # send_discord_alert("Scan Complete", "No value bets found this run.", 33023)
+        print(f"\n❌ CRASH: The script failed to send the request.\nError: {e}")
 
 if __name__ == "__main__":
-    # Send a startup ping so you know the link works
-    send_discord_alert("🤖 Bot Startup", "SharpBot is online and scanning...", 3447003)
-    
-    data = fetch_odds()
-    if data:
-        find_value_bets(data)
+    test_connection()
