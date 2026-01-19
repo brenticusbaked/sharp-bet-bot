@@ -1,8 +1,67 @@
 import requests
 import json
+import time
+
+# --- CONFIGURATION (PASTE YOURS HERE) ---
+ODDS_API_KEY = deb7282bba754878565cce93307dcdc7
+DISCORD_WEBHOOK_URL = https://discord.com/api/webhooks/1461961795022618799/42QMeyZpcxv1nAt0ui4v15prTzLNWrVnAhoqSm-jeUJsmeDANIb6l_3lwqv7zwujnd58
+# ----------------------------------------
+
+def run_diagnostics():
+    print("--- STARTING DIAGNOSTICS ---")
+    
+    # TEST 1: Check Discord Connection
+    print("\n1. Testing Discord Webhook...")
+    try:
+        payload = {"content": "✅ **Test:** Diagnostic script is running."}
+        response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+        
+        print(f"   HTTP Status Code: {response.status_code}")
+        
+        if 200 <= response.status_code < 300:
+            print("   ✅ Discord Connection: SUCCESS")
+        else:
+            print(f"   ❌ Discord Connection: FAILED (Server said: {response.text})")
+            
+    except Exception as e:
+        print(f"   ❌ Discord Connection: CRASHED ({e})")
+
+    # TEST 2: Check Odds API Connection
+    print("\n2. Testing The Odds API...")
+    try:
+        url = f'https://api.the-odds-api.com/v4/sports/basketball_nba/odds?api_key={ODDS_API_KEY}&regions=us&markets=h2h&oddsFormat=american'
+        response = requests.get(url)
+        
+        print(f"   HTTP Status Code: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            game_count = len(data)
+            print(f"   ✅ Odds API Connection: SUCCESS")
+            print(f"   Found {game_count} upcoming NBA games.")
+            
+            # Print the first game found just to prove we have data
+            if game_count > 0:
+                first_game = data[0]['home_team'] + " vs " + data[0]['away_team']
+                print(f"   Sample Game: {first_game}")
+        else:
+            print(f"   ❌ Odds API Connection: FAILED (Server said: {response.text})")
+
+    except Exception as e:
+        print(f"   ❌ Odds API Connection: CRASHED ({e})")
+
+    print("\n--- DIAGNOSTICS COMPLETE ---")
+
+# --- KEEPS WINDOW OPEN ---
+if __name__ == "__main__":
+    run_diagnostics()
+    input("\nPress ENTER to close this window...")
+
+import requests
+import json
 
 # --- PASTE YOUR WEBHOOK URL HERE ---
-WEBHOOK_URL = "https://discord.com/api/webhooks/1461961795022618799/42QMeyZpcxv1nAt0ui4v15prTzLNWrVnAhoqSm-jeUJsmeDANIb6l_3lwqv7zwujnd58"
+WEBHOOK_URL = ""
 
 def test_connection():
     print(f"Attempting to connect to: {WEBHOOK_URL[:30]}...")
